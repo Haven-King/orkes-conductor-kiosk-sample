@@ -269,7 +269,7 @@ public class KioskApplication {
                         // In the future, specifying the task reference name will not be necessary.
                         // This may be done by making the parameter optional, or by using a different endpoint.
                         // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                        STR."\{this.endpoint}/api/tasks/\{workflowId}/WaitForHumanInput/COMPLETED"))
+                        STR."\{this.endpoint}/api/tasks/\{workflowId}/WaitForHumanInput/COMPLETED/sync"))
                 .build();
 
         return this.client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenAccept(res -> {
