@@ -1,0 +1,219 @@
+{
+  "createTime": 1736878384288,
+  "updateTime": 1736879337862,
+  "name": "KioskHandler",
+  "description": "Handles a user's interactions with the kiosk",
+  "version": 1,
+  "tasks": [
+    {
+      "name": "do_while",
+      "taskReferenceName": "do_while_ref",
+      "inputParameters": {
+        "keepLastN": 10
+      },
+      "type": "DO_WHILE",
+      "decisionCases": {},
+      "defaultCase": [],
+      "forkTasks": [],
+      "startDelay": 0,
+      "joinOn": [],
+      "optional": false,
+      "defaultExclusiveJoinTask": [],
+      "asyncComplete": false,
+      "loopCondition": "(function () {\r\n  return true;\r\n})();",
+      "loopOver": [
+        {
+          "name": "yield",
+          "taskReferenceName": "yield",
+          "inputParameters": {},
+          "type": "YIELD",
+          "decisionCases": {},
+          "defaultCase": [],
+          "forkTasks": [],
+          "startDelay": 0,
+          "joinOn": [],
+          "optional": false,
+          "defaultExclusiveJoinTask": [],
+          "asyncComplete": false,
+          "loopOver": [],
+          "onStateChange": {},
+          "permissive": false
+        },
+        {
+          "name": "HandleUserAction",
+          "taskReferenceName": "HandleUserAction",
+          "inputParameters": {
+            "switchCaseValue": "${yield.output.action}"
+          },
+          "type": "SWITCH",
+          "decisionCases": {
+            "AddItem": [
+              {
+                "name": "DummyApiCallFour",
+                "taskReferenceName": "DummyApiCallFour",
+                "inputParameters": {
+                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "method": "GET",
+                  "accept": "application/json",
+                  "contentType": "application/json",
+                  "encode": true
+                },
+                "type": "HTTP",
+                "decisionCases": {},
+                "defaultCase": [],
+                "forkTasks": [],
+                "startDelay": 0,
+                "joinOn": [],
+                "optional": false,
+                "defaultExclusiveJoinTask": [],
+                "asyncComplete": false,
+                "loopOver": [],
+                "onStateChange": {},
+                "permissive": false
+              }
+            ],
+            "RemoveItem": [
+              {
+                "name": "DummyApiCallTwo",
+                "taskReferenceName": "DummyApiCallTwo",
+                "inputParameters": {
+                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "method": "GET",
+                  "accept": "application/json",
+                  "contentType": "application/json",
+                  "encode": true
+                },
+                "type": "HTTP",
+                "decisionCases": {},
+                "defaultCase": [],
+                "forkTasks": [],
+                "startDelay": 0,
+                "joinOn": [],
+                "optional": false,
+                "defaultExclusiveJoinTask": [],
+                "asyncComplete": false,
+                "loopOver": [],
+                "onStateChange": {},
+                "permissive": false
+              },
+              {
+                "name": "DummyApiCallThree",
+                "taskReferenceName": "DummyApiCallThree",
+                "inputParameters": {
+                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "method": "GET",
+                  "accept": "application/json",
+                  "contentType": "application/json",
+                  "encode": true
+                },
+                "type": "HTTP",
+                "decisionCases": {},
+                "defaultCase": [],
+                "forkTasks": [],
+                "startDelay": 0,
+                "joinOn": [],
+                "optional": false,
+                "defaultExclusiveJoinTask": [],
+                "asyncComplete": false,
+                "loopOver": [],
+                "onStateChange": {},
+                "permissive": false
+              }
+            ],
+            "Checkout": [
+              {
+                "name": "DummyApiCallOne",
+                "taskReferenceName": "DummyApiCallOne",
+                "inputParameters": {
+                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "method": "GET",
+                  "accept": "application/json",
+                  "contentType": "application/json",
+                  "encode": true
+                },
+                "type": "HTTP",
+                "decisionCases": {},
+                "defaultCase": [],
+                "forkTasks": [],
+                "startDelay": 0,
+                "joinOn": [],
+                "optional": false,
+                "defaultExclusiveJoinTask": [],
+                "asyncComplete": false,
+                "loopOver": [],
+                "onStateChange": {},
+                "permissive": false
+              },
+              {
+                "name": "CompleteOrder",
+                "taskReferenceName": "CompleteOrder",
+                "inputParameters": {
+                  "terminationStatus": "COMPLETED"
+                },
+                "type": "TERMINATE",
+                "decisionCases": {},
+                "defaultCase": [],
+                "forkTasks": [],
+                "startDelay": 0,
+                "joinOn": [],
+                "optional": false,
+                "defaultExclusiveJoinTask": [],
+                "asyncComplete": false,
+                "loopOver": [],
+                "onStateChange": {},
+                "permissive": false
+              }
+            ]
+          },
+          "defaultCase": [
+            {
+              "name": "CancelOrder",
+              "taskReferenceName": "CancelOrder",
+              "inputParameters": {
+                "terminationStatus": "FAILED",
+                "terminationReason": "Unexpected user action \"${yield.output.action}\""
+              },
+              "type": "TERMINATE",
+              "decisionCases": {},
+              "defaultCase": [],
+              "forkTasks": [],
+              "startDelay": 0,
+              "joinOn": [],
+              "optional": false,
+              "defaultExclusiveJoinTask": [],
+              "asyncComplete": false,
+              "loopOver": [],
+              "onStateChange": {},
+              "permissive": false
+            }
+          ],
+          "forkTasks": [],
+          "startDelay": 0,
+          "joinOn": [],
+          "optional": false,
+          "defaultExclusiveJoinTask": [],
+          "asyncComplete": false,
+          "loopOver": [],
+          "evaluatorType": "value-param",
+          "expression": "switchCaseValue",
+          "onStateChange": {},
+          "permissive": false
+        }
+      ],
+      "evaluatorType": "graaljs",
+      "onStateChange": {},
+      "permissive": false
+    }
+  ],
+  "inputParameters": [],
+  "outputParameters": {},
+  "failureWorkflow": "",
+  "schemaVersion": 2,
+  "restartable": true,
+  "workflowStatusListenerEnabled": false,
+  "timeoutPolicy": "ALERT_ONLY",
+  "timeoutSeconds": 0,
+  "variables": {},
+  "inputTemplate": {},
+  "enforceSchema": true
+}

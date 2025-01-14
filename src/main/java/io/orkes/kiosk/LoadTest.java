@@ -2,6 +2,8 @@ package io.orkes.kiosk;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.InputStream;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -9,11 +11,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class LoadTest {
-    private final ObjectMapper json = new ObjectMapper();
     private final Logger log = Logging.getLogger(LoadTest.class);
 
     private final AtomicLong workflowsStarted = new AtomicLong();
-    private final AtomicLong workflowsThrottled = new AtomicLong();
 
     private final KioskApplication application;
 
@@ -21,16 +21,39 @@ public class LoadTest {
         this.application = application;
     }
 
-    private CompletableFuture<Void> simulateUserAction() {
+    private CompletableFuture<HttpResponse<InputStream>> resumeWorkflow(String workflowId, String action) {
+        return this.application.resumeWorkflow(workflowId, action).exceptionally(e -> {
+            if (HttpUtils.isCausedByGoAway(e)) {
+                return this.resumeWorkflow(workflowId, action).join();
+            } else {
+                this.log.log(Level.WARNING, "Failed to execute workflow", e);
+            }
+
+            return null;
+        });
+    }
+
+    private CompletableFuture<?> simulateUserAction() {
         try {
             // Start the workflow that yields execution when it reaches the wait task.
-            var workflow = this.json.readTree(this.application.executeWorkflow().get().body());
+            var response = this.application.executeWorkflow().join();
+            var workflowId = response.headers().firstValue("workflowId")
+                    .orElseThrow();
 
-            // Waits for three seconds, simulating the time a human would take to make a decision and click a button.
-            // Thread#sleep plays well with Project Loom's Virtual Threads, so this doesn't actually block a system thread.
-            Thread.sleep(Duration.ofSeconds(3));
+            for (int i = 0; i < 3 && response.statusCode() != 204; ++i) {
+                // Waits for three seconds, simulating the time a human would take to make a decision and click a button.
+                // Thread#sleep plays well with Project Loom's Virtual Threads, so this doesn't actually block a system thread.
+                Thread.sleep(Duration.ofSeconds(3));
 
-            return this.application.resumeWorkflow(workflow.get("workflowId").asText());
+                // Advance to the next step in the workflow.
+                response = this.resumeWorkflow(workflowId, "AddItem").join();
+            }
+
+            if (response.statusCode() != 204) {
+                this.resumeWorkflow(workflowId, "Checkout");
+            }
+
+            return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -53,20 +76,7 @@ public class LoadTest {
                     runningFutures.getAndIncrement();
                     loadTest.workflowsStarted.getAndIncrement();
 
-                    loadTest.simulateUserAction()
-                            .exceptionally(e -> {
-                                if (HttpUtils.isCausedByGoAway(e)) {
-                                    // Retry logic is not actually implemented, but this is where you might put it.
-                                    loadTest.log.config("HTTP/2 connection closed by server. Retrying...");
-
-                                    loadTest.workflowsThrottled.getAndIncrement();
-                                } else {
-                                    loadTest.log.log(Level.WARNING, "Failed to execute workflow", e);
-                                }
-
-                                return null;
-                            })
-                            .thenRun(runningFutures::getAndDecrement);
+                    loadTest.simulateUserAction().thenRun(runningFutures::getAndDecrement);
                 });
 
                 try {
@@ -88,9 +98,8 @@ public class LoadTest {
                 }
             }
 
-            loadTest.log.info(String.format("Load test complete. Started %d workflows, %d of which were throttled.",
-                    loadTest.workflowsStarted.get(),
-                    loadTest.workflowsThrottled.get()));
+            loadTest.log.info(String.format("Load test complete. Started %d workflows.",
+                    loadTest.workflowsStarted.get()));
 
             return loadTest;
         }, application.executor);

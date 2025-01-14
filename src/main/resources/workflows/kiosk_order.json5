@@ -1,0 +1,62 @@
+{
+  "createTime": 1736878528300,
+  "updateTime": 0,
+  "name": "KioskOrder",
+  "description": "Handles an entire order at a kiosk end to end",
+  "version": 1,
+  "tasks": [
+    {
+      "name": "sub_workflow",
+      "taskReferenceName": "sub_workflow_ref",
+      "inputParameters": {},
+      "type": "SUB_WORKFLOW",
+      "decisionCases": {},
+      "defaultCase": [],
+      "forkTasks": [],
+      "startDelay": 0,
+      "subWorkflowParam": {
+        "name": "InitializeCart",
+        "version": 1
+      },
+      "joinOn": [],
+      "optional": false,
+      "defaultExclusiveJoinTask": [],
+      "asyncComplete": false,
+      "loopOver": [],
+      "onStateChange": {},
+      "permissive": false
+    },
+    {
+      "name": "sub_workflow_1",
+      "taskReferenceName": "sub_workflow_ref_1",
+      "inputParameters": {},
+      "type": "SUB_WORKFLOW",
+      "decisionCases": {},
+      "defaultCase": [],
+      "forkTasks": [],
+      "startDelay": 0,
+      "subWorkflowParam": {
+        "name": "KioskHandler",
+        "version": 1
+      },
+      "joinOn": [],
+      "optional": false,
+      "defaultExclusiveJoinTask": [],
+      "asyncComplete": false,
+      "loopOver": [],
+      "onStateChange": {},
+      "permissive": false
+    }
+  ],
+  "inputParameters": [],
+  "outputParameters": {},
+  "failureWorkflow": "",
+  "schemaVersion": 2,
+  "restartable": true,
+  "workflowStatusListenerEnabled": false,
+  "timeoutPolicy": "ALERT_ONLY",
+  "timeoutSeconds": 0,
+  "variables": {},
+  "inputTemplate": {},
+  "enforceSchema": true
+}

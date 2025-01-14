@@ -12,7 +12,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,7 +35,8 @@ public class KioskApplication {
 
     // Token used to authenticate with the Conductor server, derived from the access key credentials.
     private final String token;
-    private final WorkflowSpecifier workflow;
+
+    private final Map<String, WorkflowSpecifier> workflows = new HashMap<>();
 
     // In a real-world application you would want to refresh the token periodically.
     private String getToken() throws IOException, InterruptedException {
@@ -53,11 +55,13 @@ public class KioskApplication {
                 .uri(URI.create(this.endpoint + "/api/token"))
                 .build();
 
-            var body = this.json.readTree(client.send(request, HttpResponse.BodyHandlers.ofByteArray()).body());
+            var response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            var body = this.json.readTree(response.body());
+            var token = body.get("token").asText();
 
             this.log.info("Got token using access key ID and secret.");
 
-            return body.get("token").asText();
+            return token;
         }
 
         var token = System.getenv("CONDUCTOR_SERVER_TOKEN");
@@ -71,30 +75,32 @@ public class KioskApplication {
         return token;
     }
 
-    private WorkflowSpecifier publishWorkflow() throws IOException, InterruptedException {
-        var workflow = this.json.readTree(KioskApplication.class.getResourceAsStream("/workflows/kiosk_action.json5"));
-        var workflowName = workflow.get("name").asText();
-        var workflowVersion = workflow.get("version").asInt();
-        var body = this.json.writeValueAsString(workflow);
+    private void publishWorkflows(String... names) throws IOException, InterruptedException {
+        for (var name : names) {
+            var workflow = this.json.readTree(KioskApplication.class.getResourceAsStream(STR."/workflows/\{name}.json5"));
+            var workflowName = workflow.get("name").asText();
+            var workflowVersion = workflow.get("version").asInt();
+            var body = this.json.writeValueAsString(workflow);
 
-        var request = HttpRequest.newBuilder()
-                .header("Content-Type", "application/json")
-                .header("X-Authorization", this.token)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                // A real-world application would probably want to check for an existing workflow and validate that it's
-                // functionally identical to the current workflow. This example just overwrites the existing workflow.
-                .uri(URI.create(this.endpoint + "/api/metadata/workflow?overwrite=true&newVersion=false"))
-                .build();
+            var request = HttpRequest.newBuilder()
+                    .header("Content-Type", "application/json")
+                    .header("X-Authorization", this.token)
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    // A real-world application would probably want to check for an existing workflow and validate that it's
+                    // functionally identical to the current workflow. This example just overwrites the existing workflow.
+                    .uri(URI.create(STR."\{this.endpoint}/api/metadata/workflow?overwrite=true&newVersion=false"))
+                    .build();
 
-        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            var response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() == 200) {
-            this.log.info("Workflow '" + workflowName + "' published successfully.");
-        } else {
-            throw new IllegalStateException("Failed to publish workflow: " + response.body());
+            if (response.statusCode() == 200) {
+                this.log.info(STR."Workflow '\{workflowName}' published successfully.");
+            } else {
+                throw new IllegalStateException(STR."Failed to publish workflow: \{response.body()}");
+            }
+
+            this.workflows.put(name, new WorkflowSpecifier(workflowName, workflowVersion));
         }
-
-        return new WorkflowSpecifier(workflowName, workflowVersion);
     }
 
     private KioskApplication(ProgramArguments args) throws IOException, InterruptedException {
@@ -111,11 +117,16 @@ public class KioskApplication {
         }
 
         this.token = getToken();
-        this.workflow = this.publishWorkflow();
+
+        this.publishWorkflows(
+                Constants.Workflows.KIOSK_ORDER,
+                Constants.Workflows.INITIALIZE_CART,
+                Constants.Workflows.KIOSK_HANDLER
+        );
     }
 
     CompletableFuture<HttpResponse<InputStream>> executeWorkflow() {
-        var requestId = UUID.randomUUID();
+        var workflow = this.workflows.get(Constants.Workflows.KIOSK_ORDER);
 
         var request = HttpRequest.newBuilder()
                 .header("Content-Type", "application/json")
@@ -123,7 +134,7 @@ public class KioskApplication {
                 .POST(HttpRequest.BodyPublishers.ofString("{}"))
                 .uri(URI.create(
                         // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                        STR."\{this.endpoint}/api/workflow/execute/\{this.workflow.name}/\{this.workflow.version}?waitUntilTaskRef=WaitForHumanInput&waitForSeconds=3&requestId=\{requestId}"))
+                        STR."\{this.endpoint}/api/workflow/execute/\{workflow.name}/\{workflow.version}?waitForSeconds=3&returnStrategy=BLOCKING_TASK_INPUT&consistency=SYNCHRONOUS"))
                 .build();
 
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -222,17 +233,17 @@ public class KioskApplication {
         });
 
         // TODO: The UI portion of this demo application is not yet functional, but the frontend will eventually call this.
-        server.createContext("/resume-workflow/", exchange -> {
-            var workflow = this.json.readTree(exchange.getRequestBody());
-
-            this.resumeWorkflow(workflow.get("workflowId").asText()).thenRun(() -> {
-                try {
-                    exchange.sendResponseHeaders(200, -1);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        });
+//        server.createContext("/resume-workflow/", exchange -> {
+//            var workflow = this.json.readTree(exchange.getRequestBody());
+//
+//            this.resumeWorkflow(workflow.get("workflowId").asText()).thenRun(() -> {
+//                try {
+//                    exchange.sendResponseHeaders(200, -1);
+//                } catch (IOException e) {
+//                    throw new RuntimeException(e);
+//                }
+//            });
+//        });
 
         // TODO: Make the frontend functional.
         server.createContext("/", exchange -> {
@@ -260,27 +271,37 @@ public class KioskApplication {
         }
     }
 
-    CompletableFuture<Void> resumeWorkflow(String workflowId) {
+    CompletableFuture<HttpResponse<InputStream>> resumeWorkflow(String workflowId, String action) {
         var request = HttpRequest.newBuilder()
                 .header("Content-Type", "application/json")
                 .header("X-Authorization", this.token)
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                .header("X-Kiosk-Action", action) // This is just for debugging purposes.
+                .POST(HttpRequest.BodyPublishers.ofString(STR."""
+                        {
+                            "action": "\{action}"
+                        }
+                        """))
                 .uri(URI.create(
                         // In the future, specifying the task reference name will not be necessary.
                         // This may be done by making the parameter optional, or by using a different endpoint.
                         // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                        STR."\{this.endpoint}/api/tasks/\{workflowId}/WaitForHumanInput/COMPLETED/sync"))
+                        STR."\{this.endpoint}/api/tasks/\{workflowId}/COMPLETED/signal/sync?returnStrategy=BLOCKING_TASK_INPUT"))
                 .build();
 
-        return this.client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenAccept(res -> {
-            if (res.statusCode() == 200) {
+        return this.client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream()).thenApply(response -> {
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 this.log.config("Workflow resumed successfully.");
-            } else {
-                // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                this.log.warning(STR."Failed to resume workflow: \{res.body()}");
+            } else if (response.statusCode() != 304) {
+                try (var body = response.body()) {
+                    // String Templates are a preview feature. See https://openjdk.org/jeps/459
+                    this.log.warning(STR."Failed to resume workflow: \{body}");
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
-        });
 
+            return response;
+        });
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {

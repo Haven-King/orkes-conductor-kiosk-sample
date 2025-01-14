@@ -1,0 +1,43 @@
+{
+  "createTime": 1736878434893,
+  "updateTime": 0,
+  "name": "InitializeCart",
+  "description": "Initializes a cart, starting a kiosk order",
+  "version": 1,
+  "tasks": [
+    {
+      "name": "http",
+      "taskReferenceName": "http_ref",
+      "inputParameters": {
+        "uri": "https://orkes-api-tester.orkesconductor.com/api",
+        "method": "GET",
+        "accept": "application/json",
+        "contentType": "application/json",
+        "encode": true
+      },
+      "type": "HTTP",
+      "decisionCases": {},
+      "defaultCase": [],
+      "forkTasks": [],
+      "startDelay": 0,
+      "joinOn": [],
+      "optional": false,
+      "defaultExclusiveJoinTask": [],
+      "asyncComplete": false,
+      "loopOver": [],
+      "onStateChange": {},
+      "permissive": false
+    }
+  ],
+  "inputParameters": [],
+  "outputParameters": {},
+  "failureWorkflow": "",
+  "schemaVersion": 2,
+  "restartable": true,
+  "workflowStatusListenerEnabled": false,
+  "timeoutPolicy": "ALERT_ONLY",
+  "timeoutSeconds": 0,
+  "variables": {},
+  "inputTemplate": {},
+  "enforceSchema": true
+}
