@@ -1,13 +1,9 @@
 package io.orkes.kiosk;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.io.InputStream;
-import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class LoadTest {
@@ -21,22 +17,21 @@ public class LoadTest {
         this.application = application;
     }
 
-    private CompletableFuture<HttpResponse<InputStream>> resumeWorkflow(String workflowId, String action) {
-        return this.application.resumeWorkflow(workflowId, action).exceptionally(e -> {
-            if (HttpUtils.isCausedByGoAway(e)) {
-                return this.resumeWorkflow(workflowId, action).join();
-            } else {
-                this.log.log(Level.WARNING, "Failed to execute workflow", e);
-            }
-
-            return null;
-        });
-    }
-
-    private CompletableFuture<?> simulateUserAction() {
+    private CompletableFuture<?> simulateKioskOrder(int sequence) {
         try {
             // Start the workflow that yields execution when it reaches the wait task.
-            var response = this.application.executeWorkflow().join();
+            var response = this.application.executeWorkflow(Map.of(
+                    "sequence", sequence
+            ));
+
+            if (response.statusCode() != 200) {
+                return CompletableFuture.failedFuture(new RuntimeException("Failed to start workflow."));
+            }
+
+            if (response.headers().firstValue("workflowId").isEmpty()) {
+                return CompletableFuture.failedFuture(new RuntimeException("No workflow ID returned."));
+            }
+
             var workflowId = response.headers().firstValue("workflowId")
                     .orElseThrow();
 
@@ -46,11 +41,13 @@ public class LoadTest {
                 Thread.sleep(Duration.ofSeconds(3));
 
                 // Advance to the next step in the workflow.
-                response = this.resumeWorkflow(workflowId, "AddItem").join();
+                response = this.application.resumeWorkflow(workflowId, "AddItem");
             }
 
             if (response.statusCode() != 204) {
-                this.resumeWorkflow(workflowId, "Checkout");
+                this.application.resumeWorkflow(workflowId, "Checkout");
+            } else {
+                return CompletableFuture.failedFuture(new RuntimeException("Workflow did not complete."));
             }
 
             return CompletableFuture.completedFuture(null);
@@ -71,12 +68,27 @@ public class LoadTest {
 
             final var runningFutures = new AtomicLong();
 
+            long startTime = System.currentTimeMillis();
+
             for (int i = 0; i < count; ++i) {
+                int sequence = i;
+
                 application.executor.submit(() -> {
                     runningFutures.getAndIncrement();
                     loadTest.workflowsStarted.getAndIncrement();
 
-                    loadTest.simulateUserAction().thenRun(runningFutures::getAndDecrement);
+                    loadTest.simulateKioskOrder(sequence).exceptionally(e -> {
+                                loadTest.log.severe(STR."Error in load test: \{e.getMessage()}");
+                                runningFutures.getAndDecrement();
+
+                                return null;
+                            })
+                            .thenRun(runningFutures::getAndDecrement).exceptionally(e -> {
+                                loadTest.log.severe(STR."Error in load test: \{e.getMessage()}");
+                                runningFutures.getAndDecrement();
+
+                                return null;
+                            });
                 });
 
                 try {
@@ -86,6 +98,8 @@ public class LoadTest {
                     throw new RuntimeException(e);
                 }
             }
+
+            loadTest.log.info(String.format("Actual rate: %f executions per second.", (double) loadTest.workflowsStarted.get() / (System.currentTimeMillis() - startTime) * 1000));
 
             while (runningFutures.get() > 0) {
                 try {
@@ -102,6 +116,6 @@ public class LoadTest {
                     loadTest.workflowsStarted.get()));
 
             return loadTest;
-        }, application.executor);
+        });
     }
 }

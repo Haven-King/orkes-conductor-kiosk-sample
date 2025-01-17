@@ -9,7 +9,7 @@
       "name": "http",
       "taskReferenceName": "http_ref",
       "inputParameters": {
-        "uri": "https://orkes-api-tester.orkesconductor.com/api",
+        "uri": "${workflow.input.uri}",
         "method": "GET",
         "accept": "application/json",
         "contentType": "application/json",

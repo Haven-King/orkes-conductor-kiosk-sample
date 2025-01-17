@@ -1,14 +1,16 @@
 {
   "createTime": 1736878528300,
-  "updateTime": 0,
+  "updateTime": 1736903217521,
   "name": "KioskOrder",
   "description": "Handles an entire order at a kiosk end to end",
   "version": 1,
   "tasks": [
     {
-      "name": "sub_workflow",
-      "taskReferenceName": "sub_workflow_ref",
-      "inputParameters": {},
+      "name": "InitializeCart",
+      "taskReferenceName": "InitializeCart",
+      "inputParameters": {
+        "uri": "${workflow.input.uri}"
+      },
       "type": "SUB_WORKFLOW",
       "decisionCases": {},
       "defaultCase": [],
@@ -27,9 +29,60 @@
       "permissive": false
     },
     {
-      "name": "sub_workflow_1",
-      "taskReferenceName": "sub_workflow_ref_1",
-      "inputParameters": {},
+      "name": "http",
+      "taskReferenceName": "http_ref",
+      "inputParameters": {
+        "uri": "${workflow.input.uri}",
+        "method": "POST",
+        "accept": "application/json",
+        "contentType": "application/json",
+        "encode": true,
+        "body": "${InitializeCart.output.response.body}"
+      },
+      "type": "HTTP",
+      "decisionCases": {},
+      "defaultCase": [],
+      "forkTasks": [],
+      "startDelay": 0,
+      "joinOn": [],
+      "optional": false,
+      "defaultExclusiveJoinTask": [],
+      "asyncComplete": false,
+      "loopOver": [],
+      "onStateChange": {},
+      "permissive": false
+    },
+    {
+      "name": "http_1",
+      "taskReferenceName": "http_ref_1",
+      "inputParameters": {
+        "uri": "${workflow.input.uri}",
+        "method": "POST",
+        "accept": "application/json",
+        "contentType": "application/json",
+        "encode": true,
+        "body": "${http_ref.output.response.body}"
+      },
+      "type": "HTTP",
+      "decisionCases": {},
+      "defaultCase": [],
+      "forkTasks": [],
+      "startDelay": 0,
+      "joinOn": [],
+      "optional": false,
+      "defaultExclusiveJoinTask": [],
+      "asyncComplete": false,
+      "loopOver": [],
+      "onStateChange": {},
+      "permissive": false
+    },
+    {
+      "name": "KioskHandler",
+      "taskReferenceName": "KioskHandler",
+      "inputParameters": {
+        "uri": "${workflow.input.uri}",
+        "SomeDummyInput": "${InitializeCart.output.response.body}"
+      },
       "type": "SUB_WORKFLOW",
       "decisionCases": {},
       "defaultCase": [],
@@ -54,6 +107,7 @@
   "schemaVersion": 2,
   "restartable": true,
   "workflowStatusListenerEnabled": false,
+  "ownerEmail": "haven.king@orkes.io",
   "timeoutPolicy": "ALERT_ONLY",
   "timeoutSeconds": 0,
   "variables": {},

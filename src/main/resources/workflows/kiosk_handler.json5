@@ -52,7 +52,7 @@
                 "name": "DummyApiCallFour",
                 "taskReferenceName": "DummyApiCallFour",
                 "inputParameters": {
-                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "uri": "${workflow.input.uri}",
                   "method": "GET",
                   "accept": "application/json",
                   "contentType": "application/json",
@@ -77,7 +77,7 @@
                 "name": "DummyApiCallTwo",
                 "taskReferenceName": "DummyApiCallTwo",
                 "inputParameters": {
-                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "uri": "${workflow.input.uri}",
                   "method": "GET",
                   "accept": "application/json",
                   "contentType": "application/json",
@@ -100,7 +100,7 @@
                 "name": "DummyApiCallThree",
                 "taskReferenceName": "DummyApiCallThree",
                 "inputParameters": {
-                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "uri": "${workflow.input.uri}",
                   "method": "GET",
                   "accept": "application/json",
                   "contentType": "application/json",
@@ -125,7 +125,7 @@
                 "name": "DummyApiCallOne",
                 "taskReferenceName": "DummyApiCallOne",
                 "inputParameters": {
-                  "uri": "https://orkes-api-tester.orkesconductor.com/api",
+                  "uri": "${workflow.input.uri}",
                   "method": "GET",
                   "accept": "application/json",
                   "contentType": "application/json",

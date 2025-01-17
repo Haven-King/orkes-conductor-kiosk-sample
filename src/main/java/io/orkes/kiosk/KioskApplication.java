@@ -1,5 +1,6 @@
 package io.orkes.kiosk;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.sun.net.httpserver.HttpServer;
@@ -12,9 +13,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
@@ -82,9 +84,8 @@ public class KioskApplication {
             var workflowVersion = workflow.get("version").asInt();
             var body = this.json.writeValueAsString(workflow);
 
-            var request = HttpRequest.newBuilder()
+            var request = this.newRequestBuilder()
                     .header("Content-Type", "application/json")
-                    .header("X-Authorization", this.token)
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     // A real-world application would probably want to check for an existing workflow and validate that it's
                     // functionally identical to the current workflow. This example just overwrites the existing workflow.
@@ -108,7 +109,9 @@ public class KioskApplication {
 
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
         this.client = HttpClient.newBuilder()
-                .executor(executor)
+                // TODO: Investigate where in the networking chain the GOAWAY issue arises from.
+                .version(HttpClient.Version.HTTP_1_1)
+                .executor(this.executor)
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
 
@@ -116,7 +119,7 @@ public class KioskApplication {
             throw new IllegalArgumentException("CONDUCTOR_SERVER_URL environment variable is required");
         }
 
-        this.token = getToken();
+        this.token = this.arguments.auth() ? getToken() : null;
 
         this.publishWorkflows(
                 Constants.Workflows.KIOSK_ORDER,
@@ -125,19 +128,42 @@ public class KioskApplication {
         );
     }
 
-    CompletableFuture<HttpResponse<InputStream>> executeWorkflow() {
+    private HttpRequest.Builder newRequestBuilder() {
+        var builder = HttpRequest.newBuilder();
+
+        if (this.arguments.auth()) {
+            builder.header("X-Authorization", this.token);
+        }
+
+        return builder;
+    }
+
+    HttpResponse<InputStream> executeWorkflow(Map<String, ?> input) throws JsonProcessingException {
         var workflow = this.workflows.get(Constants.Workflows.KIOSK_ORDER);
 
-        var request = HttpRequest.newBuilder()
+        var workflowInput = new LinkedHashMap<>(input.size() + 1);
+
+        workflowInput.put("uri", this.arguments.apiTestUri());
+
+        workflowInput.putAll(input);
+
+        var request = this.newRequestBuilder()
                 .header("Content-Type", "application/json")
-                .header("X-Authorization", this.token)
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                .POST(HttpRequest.BodyPublishers.ofString(this.json.writeValueAsString(Map.of("input", workflowInput))))
                 .uri(URI.create(
                         // String Templates are a preview feature. See https://openjdk.org/jeps/459
                         STR."\{this.endpoint}/api/workflow/execute/\{workflow.name}/\{workflow.version}?waitForSeconds=3&returnStrategy=BLOCKING_TASK_INPUT&consistency=SYNCHRONOUS"))
                 .build();
 
-        return client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
+        while (true) {
+            try {
+                return this.client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream()).join();
+            } catch (Throwable e) {
+                if (!HttpUtils.isCausedByGoAway(e)) {
+                    throw e;
+                }
+            }
+        }
     }
 
     // Terminates existing running executions of the KioskWorkflow. Useful for cleaning up after a cancelled load test.
@@ -148,27 +174,23 @@ public class KioskApplication {
         do {
             terminated = 0;
 
-            var searchRequest = HttpRequest.newBuilder()
+            var searchRequest = this.newRequestBuilder()
                     .header("Content-Type", "application/json")
-                    .header("X-Authorization", this.token)
                     .GET()
                     .uri(URI.create(
                             // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                            STR."\{this.endpoint}/api/workflow/search?start=0&size=100&freeText=%2A&query=workflowType%20%3D%20%22KioskAction%22%20AND%20status%20%3D%20RUNNING&skipCache=true"))
+                            STR."\{this.endpoint}/api/workflow/search?start=0&size=100&freeText=%2A&query=status%20%3D%20RUNNING&skipCache=true"))
                     .build();
 
             var response = this.client.send(searchRequest, HttpResponse.BodyHandlers.ofString());
             var result = ((ArrayNode)this.json.readTree(response.body()).get("results"));
 
             if (!result.isEmpty()) {
-                var futures = new CompletableFuture[result.size()];
-
                 for (int i = 0; i < result.size(); ++i) {
                     var workflowId = result.get(i).get("workflowId").asText();
 
-                    var terminateRequest = HttpRequest.newBuilder()
+                    var terminateRequest = this.newRequestBuilder()
                             .header("Content-Type", "application/json")
-                            .header("X-Authorization", this.token)
                             .DELETE()
                             .uri(URI.create(
                                     // I tried using the bulk terminate endpoint, but it just timed out.
@@ -176,22 +198,10 @@ public class KioskApplication {
                                     STR."\{this.endpoint}/api/workflow/\{workflowId}"))
                             .build();
 
-                    futures[i] = this.client.sendAsync(terminateRequest, HttpResponse.BodyHandlers.ofString()).exceptionally(e -> {
-                        if (HttpUtils.isCausedByGoAway(e)) {
-                            this.log.config("HTTP/2 connection closed by server. Retrying...");
-                        } else {
-                            this.log.warning(STR."Failed to terminate workflow: \{e.getMessage()}");
-                        }
-
-                        return null;
-                    });
+                    this.client.send(terminateRequest, HttpResponse.BodyHandlers.ofString());
 
                     ++terminated;
                 }
-
-                this.log.info(STR."Waiting to clean up \{terminated} workflows...");
-
-                CompletableFuture.allOf(futures).join();
 
                 this.log.info(STR."Cleaned up \{terminated} workflows.");
             }
@@ -208,28 +218,28 @@ public class KioskApplication {
         server.setExecutor(executor);
 
         server.createContext("/start-workflow/", exchange -> {
-            this.executeWorkflow().thenAccept(response -> {
-                try {
-                    var workflow = this.json.readTree(response.body());
+            var response = this.executeWorkflow(Collections.emptyMap());
 
-                    // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                    var body = STR."""
-                        {
-                            "workflowId": "\{workflow.get("workflowId").asText()}"
-                        }
-                    """;
+            try {
+                var workflow = this.json.readTree(response.body());
 
-                    exchange.getResponseHeaders().set("Content-Type", "application/json");
-
-                    exchange.sendResponseHeaders(200, body.length());
-
-                    try (var os = exchange.getResponseBody()) {
-                        os.write(body.getBytes());
+                // String Templates are a preview feature. See https://openjdk.org/jeps/459
+                var body = STR."""
+                    {
+                        "workflowId": "\{workflow.get("workflowId").asText()}"
                     }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                """;
+
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+
+                exchange.sendResponseHeaders(200, body.length());
+
+                try (var os = exchange.getResponseBody()) {
+                    os.write(body.getBytes());
                 }
-            });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         });
 
         // TODO: The UI portion of this demo application is not yet functional, but the frontend will eventually call this.
@@ -271,10 +281,9 @@ public class KioskApplication {
         }
     }
 
-    CompletableFuture<HttpResponse<InputStream>> resumeWorkflow(String workflowId, String action) {
-        var request = HttpRequest.newBuilder()
+    HttpResponse<InputStream> resumeWorkflow(String workflowId, String action) throws InterruptedException, IOException {
+        var request = this.newRequestBuilder()
                 .header("Content-Type", "application/json")
-                .header("X-Authorization", this.token)
                 .header("X-Kiosk-Action", action) // This is just for debugging purposes.
                 .POST(HttpRequest.BodyPublishers.ofString(STR."""
                         {
@@ -282,26 +291,24 @@ public class KioskApplication {
                         }
                         """))
                 .uri(URI.create(
-                        // In the future, specifying the task reference name will not be necessary.
-                        // This may be done by making the parameter optional, or by using a different endpoint.
                         // String Templates are a preview feature. See https://openjdk.org/jeps/459
                         STR."\{this.endpoint}/api/tasks/\{workflowId}/COMPLETED/signal/sync?returnStrategy=BLOCKING_TASK_INPUT"))
                 .build();
 
-        return this.client.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream()).thenApply(response -> {
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                this.log.config("Workflow resumed successfully.");
-            } else if (response.statusCode() != 304) {
-                try (var body = response.body()) {
-                    // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                    this.log.warning(STR."Failed to resume workflow: \{body}");
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
+        var response = this.client.send(request, HttpResponse.BodyHandlers.ofInputStream());
 
-            return response;
-        });
+        if (response.statusCode() >= 200 && response.statusCode() < 300) {
+            this.log.config("Workflow resumed successfully.");
+        } else if (response.statusCode() != 304) {
+            try (var body = response.body()) {
+                // String Templates are a preview feature. See https://openjdk.org/jeps/459
+                this.log.warning(STR."Failed to resume workflow: \{body}");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        return response;
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {

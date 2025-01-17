@@ -1,0 +1,17 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Load Test" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="io.orkes.kiosk.KioskApplication" />
+    <module name="kiosk-sample.main" />
+    <option name="PROGRAM_PARAMETERS" value="-load-test -workflows-per-second=15 -duration=30 -cleanup -auth" />
+    <option name="VM_PARAMETERS" value="--enable-preview" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="io.orkes.kiosk.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
