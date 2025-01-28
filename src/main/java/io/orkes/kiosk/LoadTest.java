@@ -26,11 +26,11 @@ public class LoadTest {
             ));
 
             if (response.statusCode() != 200) {
-                return CompletableFuture.failedFuture(new RuntimeException("Failed to start workflow."));
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Failed to start workflow #\{sequence}."));
             }
 
             if (response.headers().firstValue("workflowId").isEmpty()) {
-                return CompletableFuture.failedFuture(new RuntimeException("No workflow ID returned."));
+                return CompletableFuture.failedFuture(new RuntimeException(STR."No workflow ID returned for workflow #\{sequence}."));
             }
 
             var workflowId = response.headers().firstValue("workflowId")
@@ -48,7 +48,7 @@ public class LoadTest {
             if (response.statusCode() != 204) {
                 this.application.resumeWorkflow(workflowId, "Checkout");
             } else {
-                return CompletableFuture.failedFuture(new RuntimeException("Workflow did not complete."));
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} did not complete: Status code \{response.statusCode()}"));
             }
 
             return CompletableFuture.completedFuture(null);
@@ -60,6 +60,10 @@ public class LoadTest {
     public static CompletableFuture<LoadTest> start(KioskApplication application) {
         return CompletableFuture.supplyAsync(() -> {
             final var loadTest = new LoadTest(application);
+
+            if (application.arguments.workflowsPerSecond() <= 0 || application.arguments.durationInSeconds().orElse(1) <= 0) {
+                return loadTest;
+            }
 
             final var interval = 1000 / application.arguments.workflowsPerSecond();
 
