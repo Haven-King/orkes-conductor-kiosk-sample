@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.logging.Logger;
 
 public class LoadTest {
@@ -17,7 +18,7 @@ public class LoadTest {
         this.application = application;
     }
 
-    private CompletableFuture<?> simulateKioskOrder(int sequence) {
+    private CompletableFuture<?> simulateKioskOrder(long sequence) {
         try {
             // Start the workflow that yields execution when it reaches the wait task.
             var response = this.application.executeWorkflow(Map.of(
@@ -61,17 +62,27 @@ public class LoadTest {
             final var loadTest = new LoadTest(application);
 
             final var interval = 1000 / application.arguments.workflowsPerSecond();
-            final var count = application.arguments.durationInSeconds() * application.arguments.workflowsPerSecond();
 
-            loadTest.log.info(String.format("Starting load test with %d workflows per second for %d seconds.", application.arguments.workflowsPerSecond(), application.arguments.durationInSeconds()));
-            loadTest.log.info(String.format("Total workflow count: %d.", count));
+            Function<Long, Boolean> shouldContinue = _ -> true;
+
+            if (application.arguments.durationInSeconds().isPresent()) {
+                final var duration = application.arguments.durationInSeconds().get();
+                final var count = application.arguments.workflowsPerSecond() * duration;
+
+                shouldContinue = i -> i < count;
+
+                loadTest.log.info(String.format("Starting load test with %d workflows per second for %d seconds.", application.arguments.workflowsPerSecond(), duration));
+                loadTest.log.info(String.format("Total workflow count: %d.", count));
+            } else {
+                loadTest.log.info(String.format("Starting load test with %d workflows per second.", application.arguments.workflowsPerSecond()));
+            }
 
             final var runningFutures = new AtomicLong();
 
             long startTime = System.currentTimeMillis();
 
-            for (int i = 0; i < count; ++i) {
-                int sequence = i;
+            for (long i = 0; shouldContinue.apply(i); ++i) {
+                var sequence = i;
 
                 application.executor.submit(() -> {
                     runningFutures.getAndIncrement();

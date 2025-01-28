@@ -2,7 +2,7 @@
   <configuration default="false" name="Load Test" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="io.orkes.kiosk.KioskApplication" />
     <module name="kiosk-sample.main" />
-    <option name="PROGRAM_PARAMETERS" value="-load-test -workflows-per-second=15 -duration=30 -cleanup -auth" />
+    <option name="PROGRAM_PARAMETERS" value="-load-test -workflows-per-second=15 -duration=60 -cleanup -auth" />
     <option name="VM_PARAMETERS" value="--enable-preview" />
     <extension name="coverage">
       <pattern>

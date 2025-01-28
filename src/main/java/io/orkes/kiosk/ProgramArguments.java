@@ -1,11 +1,13 @@
 package io.orkes.kiosk;
 
+import java.util.Optional;
+
 public record ProgramArguments(
         boolean auth,
         boolean cleanup,
         boolean performLoadTest,
         int workflowsPerSecond,
-        int durationInSeconds,
+        Optional<Integer> durationInSeconds,
         String apiTestUri
 ) {
     public static ProgramArguments parse(String[] args) {
@@ -16,7 +18,7 @@ public record ProgramArguments(
         // With each workflow representing the actions being taken on a single kiosk, the number of workflows per second
         // represents the number of kiosks being simulated.
         int workflowsPerSecond = 10;
-        int durationInSeconds = 60;
+        var durationInSeconds = Optional.<Integer>empty();
 
         String apiTestUri = Constants.Arguments.DEFAULT_API_TEST_URI;
 
@@ -30,7 +32,7 @@ public record ProgramArguments(
             } else if (arg.startsWith(Constants.Arguments.WORKFLOWS_PER_SECOND)) {
                 workflowsPerSecond = Integer.parseInt(arg.split("=", 2)[1]);
             } else if (arg.startsWith(Constants.Arguments.DURATION_IN_SECONDS)) {
-                durationInSeconds = Integer.parseInt(arg.split("=", 2)[1]);
+                durationInSeconds = Optional.of(Integer.parseInt(arg.split("=", 2)[1]));
             } else if (arg.startsWith(Constants.Arguments.API_TEST_URI)) {
                 apiTestUri = arg.split("=", 2)[1];
             }
