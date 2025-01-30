@@ -1,0 +1,1 @@
+nohup java --enable-preview -jar /app/kiosk-sample.jar -load-test -workflows-per-second=15 -auth -uri=http://172.20.38.11/

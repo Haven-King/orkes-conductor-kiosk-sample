@@ -10,7 +10,7 @@
       "taskReferenceName": "http_ref",
       "inputParameters": {
         "uri": "${workflow.input.uri}",
-        "method": "GET",
+        "method": "${workflow.input.method}",
         "accept": "application/json",
         "contentType": "application/json",
         "encode": true
@@ -29,7 +29,10 @@
       "permissive": false
     }
   ],
-  "inputParameters": [],
+  "inputParameters": [
+    "uri",
+    "method"
+  ],
   "outputParameters": {},
   "failureWorkflow": "",
   "schemaVersion": 2,

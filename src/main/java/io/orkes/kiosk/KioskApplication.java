@@ -143,6 +143,7 @@ public class KioskApplication {
 
         var workflowInput = new LinkedHashMap<>(input.size() + 1);
 
+        workflowInput.put("method", this.arguments.apiTestMethod());
         workflowInput.put("uri", this.arguments.apiTestUri());
 
         workflowInput.putAll(input);

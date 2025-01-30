@@ -1,9 +1,18 @@
 plugins {
     id 'java'
+    id 'com.gradleup.shadow' version '9.0.0-beta6'
 }
 
 group = 'io.orkes'
 version = '1.0-SNAPSHOT'
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'io.orkes.kiosk.KioskApplication'
+        )
+    }
+}
 
 repositories {
     mavenCentral()

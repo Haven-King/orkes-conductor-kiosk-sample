@@ -8,6 +8,7 @@ public record ProgramArguments(
         boolean performLoadTest,
         int workflowsPerSecond,
         Optional<Integer> durationInSeconds,
+        String apiTestMethod,
         String apiTestUri
 ) {
     public static ProgramArguments parse(String[] args) {
@@ -20,6 +21,7 @@ public record ProgramArguments(
         int workflowsPerSecond = 10;
         var durationInSeconds = Optional.<Integer>empty();
 
+        String apiTestMethod = Constants.Arguments.DEFAULT_API_TEST_METHOD;
         String apiTestUri = Constants.Arguments.DEFAULT_API_TEST_URI;
 
         for (String arg : args) {
@@ -33,11 +35,13 @@ public record ProgramArguments(
                 workflowsPerSecond = Integer.parseInt(arg.split("=", 2)[1]);
             } else if (arg.startsWith(Constants.Arguments.DURATION_IN_SECONDS)) {
                 durationInSeconds = Optional.of(Integer.parseInt(arg.split("=", 2)[1]));
+            } else if (arg.startsWith(Constants.Arguments.API_TEST_METHOD)) {
+                apiTestMethod = arg.split("=", 2)[1];
             } else if (arg.startsWith(Constants.Arguments.API_TEST_URI)) {
                 apiTestUri = arg.split("=", 2)[1];
             }
         }
 
-        return new ProgramArguments(auth, cleanup, performLoadTest, workflowsPerSecond, durationInSeconds, apiTestUri);
+        return new ProgramArguments(auth, cleanup, performLoadTest, workflowsPerSecond, durationInSeconds, apiTestMethod, apiTestUri);
     }
 }

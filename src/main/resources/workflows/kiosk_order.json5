@@ -9,6 +9,7 @@
       "name": "InitializeCart",
       "taskReferenceName": "InitializeCart",
       "inputParameters": {
+        "method": "${workflow.input.method}",
         "uri": "${workflow.input.uri}"
       },
       "type": "SUB_WORKFLOW",
@@ -33,11 +34,10 @@
       "taskReferenceName": "http_ref",
       "inputParameters": {
         "uri": "${workflow.input.uri}",
-        "method": "POST",
+        "method": "${workflow.input.method}",
         "accept": "application/json",
         "contentType": "application/json",
-        "encode": true,
-        "body": "${InitializeCart.output.response.body}"
+        "encode": true
       },
       "type": "HTTP",
       "decisionCases": {},
@@ -57,11 +57,10 @@
       "taskReferenceName": "http_ref_1",
       "inputParameters": {
         "uri": "${workflow.input.uri}",
-        "method": "POST",
+        "method": "${workflow.input.method}",
         "accept": "application/json",
         "contentType": "application/json",
-        "encode": true,
-        "body": "${http_ref.output.response.body}"
+        "encode": true
       },
       "type": "HTTP",
       "decisionCases": {},
@@ -80,6 +79,7 @@
       "name": "KioskHandler",
       "taskReferenceName": "KioskHandler",
       "inputParameters": {
+        "method": "${workflow.input.method}",
         "uri": "${workflow.input.uri}",
         "SomeDummyInput": "${InitializeCart.output.response.body}"
       },
@@ -101,8 +101,13 @@
       "permissive": false
     }
   ],
-  "inputParameters": [],
-  "outputParameters": {},
+  "inputParameters": [
+    "uri",
+    "method"
+  ],
+  "outputParameters": {
+    "sequence": "${workflow.input.sequence}"
+  },
   "failureWorkflow": "",
   "schemaVersion": 2,
   "restartable": true,

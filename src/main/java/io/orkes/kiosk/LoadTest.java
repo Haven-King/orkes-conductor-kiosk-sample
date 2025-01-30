@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class LoadTest {
@@ -22,33 +23,37 @@ public class LoadTest {
         try {
             // Start the workflow that yields execution when it reaches the wait task.
             var response = this.application.executeWorkflow(Map.of(
-                    "sequence", sequence
+                    "sequence", '"' + Long.toString(sequence) + '"'
             ));
 
             if (response.statusCode() != 200) {
-                return CompletableFuture.failedFuture(new RuntimeException(STR."Failed to start workflow #\{sequence}."));
-            }
-
-            if (response.headers().firstValue("workflowId").isEmpty()) {
-                return CompletableFuture.failedFuture(new RuntimeException(STR."No workflow ID returned for workflow #\{sequence}."));
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Failed to start workflow #\{sequence}: \{response.statusCode()}."));
             }
 
             var workflowId = response.headers().firstValue("workflowId")
                     .orElseThrow();
 
-            for (int i = 0; i < 3 && response.statusCode() != 204; ++i) {
-                // Waits for three seconds, simulating the time a human would take to make a decision and click a button.
-                // Thread#sleep plays well with Project Loom's Virtual Threads, so this doesn't actually block a system thread.
-                Thread.sleep(Duration.ofSeconds(3));
+//            for (int i = 0; i < 3 && response.statusCode() != 204; ++i) {
+//                // Waits for three seconds, simulating the time a human would take to make a decision and click a button.
+//                // Thread#sleep plays well with Project Loom's Virtual Threads, so this doesn't actually block a system thread.
+//                Thread.sleep(Duration.ofSeconds(3));
+//
+//                // Advance to the next step in the workflow.
+//                response = this.application.resumeWorkflow(workflowId, "AddItem");
+//            }
 
-                // Advance to the next step in the workflow.
-                response = this.application.resumeWorkflow(workflowId, "AddItem");
+            if (response.statusCode() == 204) {
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} returned before reaching a yield task."));
+            }
+
+            response = this.application.resumeWorkflow(workflowId, "Checkout");
+
+            if (response.statusCode() == 304) {
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} thinks that it is already completed (Received 304 Not Modified)."));
             }
 
             if (response.statusCode() != 204) {
-                this.application.resumeWorkflow(workflowId, "Checkout");
-            } else {
-                return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} did not complete: Status code \{response.statusCode()}"));
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Failed to resume workflow \{workflowId}: \{response.statusCode()}"));
             }
 
             return CompletableFuture.completedFuture(null);
@@ -93,17 +98,12 @@ public class LoadTest {
                     loadTest.workflowsStarted.getAndIncrement();
 
                     loadTest.simulateKioskOrder(sequence).exceptionally(e -> {
-                                loadTest.log.severe(STR."Error in load test: \{e.getMessage()}");
+                                loadTest.log.log(Level.SEVERE, STR."Error in load test: \{e.getMessage()}", e);
                                 runningFutures.getAndDecrement();
 
                                 return null;
                             })
-                            .thenRun(runningFutures::getAndDecrement).exceptionally(e -> {
-                                loadTest.log.severe(STR."Error in load test: \{e.getMessage()}");
-                                runningFutures.getAndDecrement();
-
-                                return null;
-                            });
+                            .thenRun(runningFutures::getAndDecrement);
                 });
 
                 try {
