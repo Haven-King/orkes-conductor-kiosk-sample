@@ -16,7 +16,7 @@ public class Constants {
         public static final String API_TEST_URI = "-uri";
 
         public static final String DEFAULT_API_TEST_METHOD = "POST";
-        public static final String DEFAULT_API_TEST_URI = "https://orkes-api-tester.orkesconductor.com/api?sleepFor=250";
+        public static final String DEFAULT_API_TEST_URI = "https://orkes-api-tester.orkesconductor.com/api";
         public static final String API_TEST_METHOD = "-method";
     }
 }

@@ -300,13 +300,6 @@ public class KioskApplication {
 
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
             this.log.config("Workflow resumed successfully.");
-        } else if (response.statusCode() != 304) {
-            try (var body = response.body()) {
-                // String Templates are a preview feature. See https://openjdk.org/jeps/459
-                this.log.warning(STR."Failed to resume workflow: \{body}");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
         }
 
         return response;

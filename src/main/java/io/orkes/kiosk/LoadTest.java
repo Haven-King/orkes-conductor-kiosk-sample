@@ -33,14 +33,14 @@ public class LoadTest {
             var workflowId = response.headers().firstValue("workflowId")
                     .orElseThrow();
 
-//            for (int i = 0; i < 3 && response.statusCode() != 204; ++i) {
-//                // Waits for three seconds, simulating the time a human would take to make a decision and click a button.
-//                // Thread#sleep plays well with Project Loom's Virtual Threads, so this doesn't actually block a system thread.
-//                Thread.sleep(Duration.ofSeconds(3));
-//
-//                // Advance to the next step in the workflow.
-//                response = this.application.resumeWorkflow(workflowId, "AddItem");
-//            }
+            for (int i = 0; i < 3 && response.statusCode() != 204; ++i) {
+                // Waits for three seconds, simulating the time a human would take to make a decision and click a button.
+                // Thread#sleep plays well with Project Loom's Virtual Threads, so this doesn't actually block a system thread.
+                Thread.sleep(Duration.ofSeconds(3));
+
+                // Advance to the next step in the workflow.
+                response = this.application.resumeWorkflow(workflowId, "AddItem");
+            }
 
             if (response.statusCode() == 204) {
                 return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} returned before reaching a yield task."));

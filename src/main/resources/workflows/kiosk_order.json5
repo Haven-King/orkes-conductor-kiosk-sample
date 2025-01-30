@@ -113,8 +113,8 @@
   "restartable": true,
   "workflowStatusListenerEnabled": false,
   "ownerEmail": "haven.king@orkes.io",
-  "timeoutPolicy": "ALERT_ONLY",
-  "timeoutSeconds": 0,
+  "timeoutPolicy": "TIME_OUT_WF",
+  "timeoutSeconds": 30,
   "variables": {},
   "inputTemplate": {},
   "enforceSchema": true
