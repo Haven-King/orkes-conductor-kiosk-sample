@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kiosk-sample
+  namespace: kiosk-sample
+  labels:
+    app: kiosk-sample
+spec:
+  selector:
+    matchLabels:
+      app: kiosk-sample
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kiosk-sample
+    spec:
+      containers:
+        - name: kiosk-sample
+          image: ghcr.io/haven-king/kiosk-sample:v1
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "4"
+            limits:
+              memory: "4Gi"
+              cpu: "4"
