@@ -48,12 +48,16 @@ public class LoadTest {
 
             response = this.application.resumeWorkflow(workflowId, "Checkout");
 
-            if (response.statusCode() == 304) {
-                return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} thinks that it is already completed (Received 304 Not Modified)."));
+            if (response.statusCode() != 200) {
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Failed to resume workflow \{workflowId}: \{response.statusCode()}"));
             }
 
-            if (response.statusCode() != 204) {
-                return CompletableFuture.failedFuture(new RuntimeException(STR."Failed to resume workflow \{workflowId}: \{response.statusCode()}"));
+            if (response.headers().firstValue("workflowStatus").isEmpty()) {
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} did not return a workflowStatus header."));
+            }
+
+            if (!response.headers().firstValue("workflowStatus").get().equals("COMPLETED")) {
+                return CompletableFuture.failedFuture(new RuntimeException(STR."Workflow \{workflowId} did not complete."));
             }
 
             return CompletableFuture.completedFuture(null);
